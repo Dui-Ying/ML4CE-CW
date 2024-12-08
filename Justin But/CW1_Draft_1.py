@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.gaussian_process.kernels import RBF
 
 # Length Scale need adjustment
+kernel = RBF(length_scale=0.1)
 def rbf_kernel(x1, x2, length_scale=0.1, sigma_f=1.0):
     return sigma_f**2 * math.exp(-((x1 - x2)**2) / (2 * length_scale**2))
 
