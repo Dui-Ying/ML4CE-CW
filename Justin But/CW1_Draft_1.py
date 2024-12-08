@@ -1,15 +1,14 @@
 import numpy as np
 
 # RBF Kernel
-from sklearn.gaussian_process.kernels import RBF
-
-# Length Scale need adjustment
-kernel = RBF(length_scale=0.1)
+# Length Scale
+# Sigma F maybe Sigma Variance
+# Noise Variance
 def rbf_kernel(x1, x2, length_scale=0.1, sigma_f=1.0):
     return sigma_f**2 * math.exp(-((x1 - x2)**2) / (2 * length_scale**2))
 
 # Build covariance matrix K(X,X)
-def build_cov_matrix(X, noise=1e-10, length_scale=0.1, sigma_f=1.0):
+def cov_matrix(X, noise=1e-10, sigma_f=1.0, length_scale=0.1):
     n = len(X)
     K = [[0.0]*n for _ in range(n)]
     for i in range(n):
@@ -19,49 +18,20 @@ def build_cov_matrix(X, noise=1e-10, length_scale=0.1, sigma_f=1.0):
                 K[i][j] += noise
     return K
 
-# Compute the inverse of a matrix (using a simple Gaussian elimination)
+# Compute the inverse of a matrix (using numpy)
 def mat_inv(M):
-    # This is a basic implementation for illustrative purposes only.
-    # For numerical stability and efficiency, use numpy or another optimized library.
-    n = len(M)
-    # Create augmented matrix
-    A = [row[:] for row in M]
-    inv = [[float(i==j) for j in range(n)] for i in range(n)]
+    # Convert to numpy array
+    A = np.array(M, dtype=float)
     
-    # Gaussian elimination
-    for i in range(n):
-        # Find pivot
-        pivot = A[i][i]
-        if pivot == 0.0:
-            # Find a row to swap
-            for r in range(i+1, n):
-                if A[r][i] != 0.0:
-                    A[i], A[r] = A[r], A[i]
-                    inv[i], inv[r] = inv[r], inv[i]
-                    pivot = A[i][i]
-                    break
-        if pivot == 0.0:
-            raise ValueError("Matrix is singular.")
-        
-        # Normalize pivot row
-        scale = 1.0/pivot
-        for c in range(n):
-            A[i][c] *= scale
-            inv[i][c] *= scale
-        
-        # Eliminate below and above
-        for r in range(n):
-            if r != i:
-                factor = A[r][i]
-                for c in range(n):
-                    A[r][c] -= factor * A[i][c]
-                    inv[r][c] -= factor * inv[i][c]
-
-    return inv
+    # Use numpy.linalg.inv for matrix inversion
+    A_inv = np.linalg.inv(A)
+    
+    # Convert back to a regular Python list if needed
+    return A_inv.tolist()
 
 # GP prediction for mean and variance at a new point x_star
-def gp_predict(x_star, X, y, length_scale=0.1, sigma_f=1.0, noise=1e-10):
-    K = build_cov_matrix(X, noise=noise, length_scale=length_scale, sigma_f=sigma_f)
+def gp_predict(x_star, X, y, noise=1e-10, sigma_f=1.0, length_scale=0.1):
+    K = cov_matrix(X, noise=noise, length_scale=length_scale, sigma_f=sigma_f)
     K_inv = mat_inv(K)
     k_star = [rbf_kernel(xi, x_star, length_scale, sigma_f) for xi in X]
     # Mean
@@ -84,10 +54,8 @@ def phi(z):
     return (1.0/math.sqrt(2*math.pi))*math.exp(-0.5*z*z)
 
 # CDF of standard normal (using error function approximation)
+# Consider using a better CDF
 def Phi(z):
-    # Approximation of the CDF for standard normal
-    # For better accuracy, consider a more complex approximation.
-    # Here, we use the error function math.erf:
     return 0.5*(1 + math.erf(z/math.sqrt(2)))
 
 # Expected Improvement
@@ -104,6 +72,7 @@ def expected_improvement(x, X, y, f_best, length_scale=0.1, sigma_f=1.0):
     return ei
 
 # Bayesian Optimization loop
+# Iteration + Initial Points
 def bayesian_optimization(objective, bounds=(0.0, 1.0), n_iter=10, init_points=3):
     # Initial random points
     X = [random.uniform(bounds[0], bounds[1]) for _ in range(init_points)]
@@ -130,10 +99,3 @@ def bayesian_optimization(objective, bounds=(0.0, 1.0), n_iter=10, init_points=3
         print(f"Iteration {iteration+1}: Best x = {best_x:.4f}, f(x) = {new_y:.4f}, Current best f = {min(y):.4f}")
     
     return X, y
-
-# Run the optimization
-if __name__ == "__main__":
-    # For demonstration, we run 10 iterations
-    X_final, y_final = bayesian_optimization(objective, bounds=(0,1), n_iter=10, init_points=3)
-    best_idx = y_final.index(min(y_final))
-    print(f"Final best: x = {X_final[best_idx]:.4f}, f(x) = {y_final[best_idx]:.4f}")
